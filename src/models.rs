@@ -36,6 +36,8 @@ pub struct TokenAttributes {
     pub volume: f64,
     #[serde(default)]
     pub socials: Option<Socials>,
+    pub sells_count: Option<i64>,
+    pub pooled_sol: f64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
