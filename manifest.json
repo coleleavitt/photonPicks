@@ -1,0 +1,30 @@
+{
+  "manifest_version": 2,
+  "name": "WebSocket Token Tracker",
+  "version": "1.0",
+  "description": "Tracks trending tokens via WebSocket on Photon Sol",
+  "permissions": [
+    "https://photon-sol.tinyastro.io/*",
+    "webRequest",
+    "webRequestBlocking"
+  ],
+  "browser_action": {
+    "default_popup": "index.html",
+    "default_title": "Token Tracker"
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://photon-sol.tinyastro.io/*"],
+      "js": ["main.js"],
+      "css": ["styles.css"]
+    }
+  ],
+  "background": {
+    "scripts": ["background.js"]
+  },
+  "icons": {
+    "48": "icons/icon48.png",
+    "96": "icons/icon96.png"
+  },
+  "content_security_policy": "default-src 'self'; connect-src ws: wss: https:;"
+}

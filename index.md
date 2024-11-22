@@ -1,0 +1,3 @@
+- 25 to 30 % profit take
+- actively check pricew when making a trade and calculate fees so even if you see to take a profit, you won't lose money in fees
+- 

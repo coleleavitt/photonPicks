@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Token Tracker</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="dashboard">
+    <h1>Token Tracking Dashboard</h1>
+    <p id="connectionStatus" class="text-red-600">Disconnected</p>
+    <div class="stats-grid">
+        <div class="metric-card">
+            <h2>Active Tokens</h2>
+            <p id="tokenCount">0</p>
+        </div>
+    </div>
+    <div class="table-container">
+        <table>
+            <thead>
+            <tr>
+                <th>Name</th>
+                <th>Symbol</th>
+                <th>Price</th>
+                <th>Market Cap</th>
+                <th>Volume</th>
+                <th>Buy/Sell Ratio</th>
+                <th>Pooled SOL</th>
+                <th>Created Time</th>
+            </tr>
+            </thead>
+            <tbody id="tokenTableBody"></tbody>
+        </table>
+    </div>
+    <button id="killSwitch" class="bg-green-500">Stop Tracking</button>
+    <button id="exportData" class="export-button">Export Data</button>
+</div>
+
+<!-- Include your JavaScript -->
+<script src="main.js"></script>
+</body>
+</html>

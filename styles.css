@@ -1,0 +1,23 @@
+body {
+    min-width: 800px;
+    max-width: 1200px;
+    overflow-x: auto;
+}
+
+.table-container {
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+table {
+    border-collapse: separate;
+    border-spacing: 0;
+    width: 100%;
+}
+
+th, td {
+    padding: 12px;
+    border-bottom: solid #e5e7eb;
+}
+
+.bg-green-500 { background-color:#10B981;}
