@@ -1,7 +1,11 @@
-// src/message_handler.rs
 use crate::models::TokenResponse;
 use crate::token_analysis::{TokenFilter, TokenMetrics};
 
+/// Handles a token message by parsing it and processing the tokens that meet the filter criteria.
+///
+/// # Arguments
+///
+/// * `message` - A string slice that holds the JSON message containing token data.
 pub fn handle_token_message(message: &str) {
     match serde_json::from_str::<TokenResponse>(message) {
         Ok(token_response) => {
@@ -18,10 +22,16 @@ pub fn handle_token_message(message: &str) {
         }
         Err(e) => {
             eprintln!("Failed to parse message: {}", e);
+            eprintln!("Response: {}", message);
         }
     }
 }
 
+/// Prints the metrics of a token to the console.
+///
+/// # Arguments
+///
+/// * `metrics` - A reference to `TokenMetrics` containing the metrics of the token.
 fn print_token_metrics(metrics: &TokenMetrics) {
     println!("🚀 Trending Token Found:");
     println!("Name: {} ({})", metrics.name, metrics.symbol);

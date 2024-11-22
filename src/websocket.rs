@@ -5,6 +5,11 @@ use tokio::net::TcpStream;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{accept_async, WebSocketStream};
 
+/// Handles an incoming TCP connection and upgrades it to a WebSocket connection.
+///
+/// # Arguments
+///
+/// * `stream` - A `TcpStream` representing the incoming TCP connection.
 pub async fn handle_connection(stream: TcpStream) {
     let ws_stream = match accept_async(stream).await {
         Ok(ws) => ws,
@@ -17,6 +22,11 @@ pub async fn handle_connection(stream: TcpStream) {
     process_websocket(ws_stream).await;
 }
 
+/// Processes the WebSocket stream by reading messages and handling them.
+///
+/// # Arguments
+///
+/// * `ws_stream` - A `WebSocketStream<TcpStream>` representing the WebSocket connection.
 async fn process_websocket(ws_stream: WebSocketStream<TcpStream>) {
     let (_write, mut read) = ws_stream.split();
 
