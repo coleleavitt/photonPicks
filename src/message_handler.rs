@@ -1,37 +1,45 @@
-// src/message_handler.rs
-use crate::models::TokenResponse;
-use crate::token_analysis::{TokenFilter, TokenMetrics};
+use std::fs::OpenOptions;
+use std::io::Write;
+use crate::models::*;
 
-pub fn handle_token_message(message: &str) {
-    match serde_json::from_str::<TokenResponse>(message) {
-        Ok(token_response) => {
-            let filter = TokenFilter::default();
+pub fn handle_token_message(message: &str) -> serde_json::Result<()> {
+    let token_data: WebSocketMessage = serde_json::from_str(message)?;
 
-            for token in token_response
-                .data
-                .iter()
-                .filter(|t| filter.meets_criteria(t))
-            {
-                let metrics = TokenMetrics::from_token(token);
-                print_token_metrics(&metrics);
+    if let Ok(mut file) = OpenOptions::new()
+        .append(true)
+        .create(true)
+        .open("token_messages.txt")
+    {
+        for entry in token_data.data {
+            let log_message = match entry.attributes {
+                TokenAttributes::Simple { action, img_url } => {
+                    format!(
+                        "Simple Update - Action: {}, Image: {}\n",
+                        action, img_url
+                    )
+                },
+                TokenAttributes::Token { name, symbol, price_usd, volume, holders_count, .. } => {
+                    format!(
+                        "Token Update - Name: {}, Symbol: {}, Price: ${}, Volume: ${:.2}, Holders: {}\n",
+                        name, symbol, price_usd, volume, holders_count
+                    )
+                }
+            };
+
+            if let Err(e) = write!(file, "{}", log_message) {
+                eprintln!("Error writing to file: {}", e);
             }
         }
-        Err(e) => {
-            eprintln!("Failed to parse message: {}", e);
-        }
     }
+    Ok(())
 }
 
-fn print_token_metrics(metrics: &TokenMetrics) {
-    println!("🚀 Trending Token Found:");
-    println!("Name: {} ({})", metrics.name, metrics.symbol);
-    println!("Price: ${:.8}", metrics.price_usd.unwrap_or_default());
-    println!("Market Cap: ${:.2}", metrics.market_cap);
-    println!("Holders: {}", metrics.holders);
-    println!("Top Holders %: {:.2}%", metrics.top_holders_perc);
-    println!("Volume: ${:.2}", metrics.volume);
-    println!("Volume/MCap: {:.3}", metrics.volume_mcap_ratio);
-    println!("Buy/Sell Ratio: {:.2}", metrics.buy_sell_ratio);
-    println!("Age (hours): {:.2}", metrics.age_hours);
-    println!("---");
+pub fn handle_token_message_safe(message: &str) {
+    if let Err(e) = std::panic::catch_unwind(|| {
+        if let Err(e) = handle_token_message(message) {
+            eprintln!("Error deserializing message: {}", e);
+        }
+    }) {
+        eprintln!("Panic while handling token message: {:?}", e);
+    }
 }
