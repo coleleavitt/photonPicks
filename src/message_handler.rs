@@ -1,43 +1,35 @@
 use std::fs::OpenOptions;
 use std::io::Write;
-use crate::models::*;
+use serde_json::from_str;
+use crate::models::Root;
 
-pub fn handle_token_message(message: &str) -> serde_json::Result<()> {
-    let token_data: WebSocketMessage = serde_json::from_str(message)?;
+pub fn handle_token_message(message: &str) -> std::io::Result<()> {
+    let root: Root = match from_str(message) {
+        Ok(response) => response,
+        Err(e) => {
+            eprintln!("Failed to deserialize message: {}", e);
+            return Ok(());
+        }
+    };
 
-    if let Ok(mut file) = OpenOptions::new()
+    let mut file = OpenOptions::new()
         .append(true)
         .create(true)
-        .open("token_messages.txt")
-    {
-        for entry in token_data.data {
-            let log_message = match entry.attributes {
-                TokenAttributes::Simple { action, img_url } => {
-                    format!(
-                        "Simple Update - Action: {}, Image: {}\n",
-                        action, img_url
-                    )
-                },
-                TokenAttributes::Token { name, symbol, price_usd, volume, holders_count, .. } => {
-                    format!(
-                        "Token Update - Name: {}, Symbol: {}, Price: ${}, Volume: ${:.2}, Holders: {}\n",
-                        name, symbol, price_usd, volume, holders_count
-                    )
-                }
-            };
+        .open("token_messages.txt")?;
 
-            if let Err(e) = write!(file, "{}", log_message) {
-                eprintln!("Error writing to file: {}", e);
-            }
+    for daum in root.data {
+        if let Some(name) = daum.attributes.name {
+            writeln!(file, "{}", name)?;
         }
     }
+
     Ok(())
 }
 
 pub fn handle_token_message_safe(message: &str) {
     if let Err(e) = std::panic::catch_unwind(|| {
         if let Err(e) = handle_token_message(message) {
-            eprintln!("Error deserializing message: {}", e);
+            eprintln!("Error writing message to file: {}", e);
         }
     }) {
         eprintln!("Panic while handling token message: {:?}", e);
