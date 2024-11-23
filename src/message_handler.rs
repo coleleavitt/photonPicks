@@ -1,7 +1,8 @@
+// src/message_handler.rs
+use crate::models::Root;
+use serde_json::from_str;
 use std::fs::OpenOptions;
 use std::io::Write;
-use serde_json::from_str;
-use crate::models::Root;
 
 /// Handles a token message by deserializing it and writing the names of the data objects to a file.
 ///
@@ -27,8 +28,14 @@ pub fn handle_token_message(message: &str) -> std::io::Result<()> {
         .open("token_messages.txt")?;
 
     for daum in root.data {
-        if let Some(name) = daum.attributes.name {
-            writeln!(file, "{}", name)?;
+        if let (Some(name), Some(pooled_sol), Some(lp_burned_perc)) = (
+            daum.attributes.name.as_ref(),
+            daum.attributes.pooled_sol,
+            daum.attributes.audit.as_ref().map(|a| a.lp_burned_perc),
+        ) {
+            if pooled_sol >= 2.0 && lp_burned_perc == 100 {
+                writeln!(file, "{}", name)?;
+            }
         }
     }
 
