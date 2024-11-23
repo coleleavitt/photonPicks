@@ -1,5 +1,5 @@
-use tokio::net::TcpStream;
 use std::net::SocketAddr;
+use tokio::net::TcpStream;
 
 #[tokio::test]
 /// Tests if the server starts and listens on the specified address.
@@ -9,7 +9,10 @@ use std::net::SocketAddr;
 async fn server_starts_and_listens_on_address() {
     let addr = "127.0.0.1:8081";
     let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
-    assert_eq!(listener.local_addr().unwrap(), addr.parse::<SocketAddr>().unwrap());
+    assert_eq!(
+        listener.local_addr().unwrap(),
+        addr.parse::<SocketAddr>().unwrap()
+    );
 }
 
 #[tokio::test]
