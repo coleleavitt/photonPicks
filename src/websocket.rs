@@ -1,4 +1,4 @@
-// src/websocket.rs
+use crate::error::AppError;
 use crate::message_handler::handle_token_message_safe;
 use futures_util::StreamExt;
 use tokio::net::TcpStream;
@@ -10,16 +10,10 @@ use tokio_tungstenite::{accept_async, WebSocketStream};
 /// # Arguments
 ///
 /// * `stream` - A `TcpStream` representing the incoming TCP connection.
-pub async fn handle_connection(stream: TcpStream) {
-    let ws_stream = match accept_async(stream).await {
-        Ok(ws) => ws,
-        Err(e) => {
-            eprintln!("Failed to accept websocket connection: {}", e);
-            return;
-        }
-    };
-
+pub async fn handle_connection(stream: TcpStream) -> Result<(), AppError> {
+    let ws_stream = accept_async(stream).await.map_err(|e| AppError::Connection(e.to_string()))?;
     process_websocket(ws_stream).await;
+    Ok(())
 }
 
 /// Processes the WebSocket stream by reading messages and handling them.
