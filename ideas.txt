@@ -1,0 +1,9 @@
+##Ideas##
+Cipher: Check for duplicate tokens by name and img
+Cipher: the one with the highest liquidity and fully diluted valuation (if market-cap is associated with this as well)
+
+
+Cole: Integrate DB to track the tokens and their respective data (duplicate tokens by name and img and track statistics on them to see which is the best)
+Cole: Calculate fees when making buys and sells so you don't lose profits and go negative due to that lost money
+
+Saddam:  track wallets and see which top level traders are trading the "best" coins (user provides a list of wallets they find and know are top level traders). Go through the wallets and figure out which coins they are buying

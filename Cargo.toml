@@ -10,3 +10,4 @@ futures-util = "0.3.31"
 serde = { version = "1.0.215", features = ["derive"] }
 serde_json = "1.0.133"
 serde_derive = "1.0.215"
+surrealdb = { version = "2.1.0", features = ["kv-rocksdb"] }

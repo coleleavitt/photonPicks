@@ -3,8 +3,6 @@
 mod message_handler;
 mod models;
 mod websocket;
-mod db_handler;
-
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let addr = "127.0.0.1:8080";
