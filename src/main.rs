@@ -1,19 +1,22 @@
 //! Main module for the WebSocket server.
 
 mod models;
+mod math;
 
 use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
 use std::sync::Arc;
-
 use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 use tokio_tungstenite::{accept_async, tungstenite::protocol::Message};
 
 use crate::models::{Result, TokenData, TokenMap, WebSocketError};
+use crate::math::{generate_wallet_holdings, collect_recent_trades};
 use futures_util::{StreamExt, TryStreamExt};
 const ADDR: &str = "127.0.0.1:8080";
 const FILE_PATH: &str = "tokens.txt";
+
+
 
 #[global_allocator]
 static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
@@ -73,7 +76,7 @@ async fn process_message(text: &str, token_map: &Arc<RwLock<TokenMap>>) -> Resul
     if let Some(tokens) = json.get("tokens") {
         update_token_map(tokens, token_map).await?;
         print_token_details(tokens)?;
-        append_to_file("tokens.txt", tokens)?;
+        // append_to_file("tokens.txt", tokens)?;
     }
     Ok(())
 }
@@ -112,17 +115,21 @@ fn print_single_token(token: &TokenData, name: &str) {
     println!("Name: {name}");
 
     if let Some(addr) = &token.attributes.token_address { println!("Address: {addr}"); }
-
     if let Some(symbol) = &token.attributes.symbol { println!("Symbol: {symbol}"); }
-
     if let Some(price) = token.attributes.price_usd { println!("Price: ${price:.8}"); }
-
     if let Some(volume) = token.attributes.volume { println!("Volume: ${volume:.2}"); }
-
     if let Some(holders) = token.attributes.holders_count { println!("Holders: {holders}"); }
 
-    println!("---");
+    let trades = collect_recent_trades(token);
+    let wallet_holdings = generate_wallet_holdings(token);
+    let hhi = token.calculate_adjusted_concentration(&wallet_holdings, &trades);
+    let risk_level = token.get_concentration_risk(hhi);
+
+    println!("Concentration Score: {:.4}", hhi);
+    println!("Risk Level: {}", risk_level);
+    println!("---\n---");
 }
+
 
 fn append_to_file(file_path: &str, new_tokens: &serde_json::Value) -> Result<()> {
     let file = OpenOptions::new()
