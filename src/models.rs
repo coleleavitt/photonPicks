@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use std::borrow::Cow;
+use rustc_hash::FxHashMap;
 
 #[derive(Debug, thiserror::Error)]
 pub enum WebSocketError {
@@ -14,6 +14,7 @@ pub enum WebSocketError {
 }
 
 pub type Result<T> = std::result::Result<T, WebSocketError>;
+pub type TokenMap = FxHashMap<Box<str>, TokenData>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenData {
@@ -23,7 +24,7 @@ pub struct TokenData {
     pub data_type: Box<str>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct Attributes {
     pub address: Option<Box<str>>,
     pub audit: Option<Audit>,
@@ -103,87 +104,6 @@ pub enum Action {
     Overwrite,
 }
 
-impl TokenData {
-    pub fn from_json(json: &str) -> Result<Self> {
-        Ok(serde_json::from_str(json)?)
-    }
-
-    pub fn to_json(&self) -> Result<String> {
-        Ok(serde_json::to_string(self)?)
-    }
-
-    pub fn to_json_pretty(&self) -> Result<String> {
-        Ok(serde_json::to_string_pretty(self)?)
-    }
-
-    pub fn validate(&self) -> Result<()> {
-        if self.id.is_empty() {
-            return Err(WebSocketError::TokenParse("Empty token ID".into()));
-        }
-        if self.data_type.is_empty() {
-            return Err(WebSocketError::TokenParse("Empty token type".into()));
-        }
-        Ok(())
-    }
-}
-
-impl Attributes {
-    pub fn get_display_name(&self) -> Cow<str> {
-        self.name.as_deref()
-            .map(Cow::Borrowed)
-            .unwrap_or_else(|| Cow::Borrowed("Unknown Token"))
-    }
-
-    pub fn get_symbol_or_default(&self) -> Cow<str> {
-        self.symbol.as_deref()
-            .map(Cow::Borrowed)
-            .unwrap_or_else(|| Cow::Borrowed("???"))
-    }
-
-    pub fn has_valid_price(&self) -> bool {
-        self.price_usd.map_or(false, |p| p > 0.0)
-    }
-
-    pub fn has_valid_volume(&self) -> bool {
-        self.volume.map_or(false, |v| v >= 0.0)
-    }
-
-    pub fn has_valid_holders(&self) -> bool {
-        self.holders_count.map_or(false, |h| h > 0)
-    }
-}
-
-impl Audit {
-    pub fn is_safe(&self) -> bool {
-        !self.freeze_authority &&
-            !self.mint_authority &&
-            self.lp_burned_perc >= 95 &&
-            self.top_holders_perc <= 15.0
-    }
-
-    pub fn get_risk_score(&self) -> u8 {
-        let mut score = 0;
-        if self.freeze_authority { score += 2; }
-        if self.mint_authority { score += 3; }
-        if self.lp_burned_perc < 95 { score += 2; }
-        if self.top_holders_perc > 15.0 { score += 1; }
-        score
-    }
-}
-
-impl InitialLiquidity {
-    pub fn is_valid(&self) -> bool {
-        self.quote.is_some() &&
-            self.token.is_some() &&
-            self.usd.is_some() &&
-            !self.pending.unwrap_or(true)
-    }
-
-    pub fn get_total_value_usd(&self) -> Option<f64> {
-        self.usd
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -204,72 +124,7 @@ mod tests {
             "type": "token"
         }"#;
 
-        let result = TokenData::from_json(json);
+        let result = serde_json::from_str::<TokenData>(json);
         assert!(result.is_ok());
-    }
-
-    #[test]
-    fn test_audit_risk_score() {
-        let audit = Audit {
-            freeze_authority: true,
-            mint_authority: true,
-            lp_burned_perc: 90,
-            top_holders_perc: 20.0,
-        };
-        assert_eq!(audit.get_risk_score(), 8);
-        assert!(!audit.is_safe());
-    }
-
-    #[test]
-    fn test_attributes_display() {
-        let attrs = Attributes {
-            name: Some("Test Token".into()),
-            symbol: Some("TEST".into()),
-            price_usd: Some(1.0),
-            volume: Some(1000.0),
-            holders_count: Some(100),
-            ..Default::default()
-        };
-
-        assert_eq!(attrs.get_display_name(), "Test Token");
-        assert_eq!(attrs.get_symbol_or_default(), "TEST");
-        assert!(attrs.has_valid_price());
-        assert!(attrs.has_valid_volume());
-        assert!(attrs.has_valid_holders());
-    }
-}
-
-impl Default for Attributes {
-    fn default() -> Self {
-        Self {
-            address: None,
-            audit: None,
-            buys_count: None,
-            created_timestamp: None,
-            cur_liq: None,
-            dev_holding_perc: None,
-            dex_i: None,
-            fdv: None,
-            from_meme_dex: None,
-            from_moonshot: None,
-            from_pump: None,
-            holders_count: None,
-            ignored: None,
-            img_url: None,
-            init_liq: None,
-            name: None,
-            open_timestamp: None,
-            pooled_sol: None,
-            price_usd: None,
-            pump_migrated: None,
-            pump_progress: None,
-            sells_count: None,
-            snipers_count: None,
-            socials: None,
-            symbol: None,
-            token_address: None,
-            volume: None,
-            action: None,
-        }
     }
 }

@@ -5,12 +5,11 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1.41.1", features = ["full"] }
-tokio-tungstenite = "0.24.0"
+tokio-tungstenite = { version = "0.24.0", features = ["connect"] }
 futures-util = "0.3.31"
 serde = { version = "1.0.215", features = ["derive"] }
 serde_json = "1.0.133"
-serde_derive = "1.0.215"
 thiserror = "2.0.3"
-anyhow = "1.0.93"
 rustc-hash = "2.0.0"
 mimalloc = "0.1.43"
+tempfile = "3.14.0"
