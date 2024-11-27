@@ -1,7 +1,0 @@
-[server]
-host = "127.0.0.1"
-port = 8080
-
-[websocket]
-max_connections = 1000
-timeout_seconds = 60
