@@ -13,6 +13,7 @@ use tokio_tungstenite::{accept_async, tungstenite::protocol::Message};
 use crate::models::{Result, TokenData, TokenMap, WebSocketError};
 use futures_util::{StreamExt, TryStreamExt};
 const ADDR: &str = "127.0.0.1:8080";
+const FILE_PATH: &str = "tokens.txt";
 
 #[global_allocator]
 static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
@@ -23,10 +24,9 @@ async fn main() -> Result<()> {
     println!("WebSocket server listening on ws://{ADDR}");
 
     let token_map = Arc::new(RwLock::new(TokenMap::default()));
-    let file_path = "tokens.txt";
 
-    if !std::path::Path::new(file_path).exists() {
-        std::fs::File::create(file_path)?;
+    if !std::path::Path::new(FILE_PATH).exists() {
+        std::fs::File::create(FILE_PATH)?;
     }
 
     while let Ok((stream, _)) = listener.accept().await {

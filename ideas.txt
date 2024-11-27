@@ -5,5 +5,22 @@ Cipher: the one with the highest liquidity and fully diluted valuation (if marke
 
 Cole: Integrate DB to track the tokens and their respective data (duplicate tokens by name and img and track statistics on them to see which is the best)
 Cole: Calculate fees when making buys and sells so you don't lose profits and go negative due to that lost money
+Cole: instead of directly updating the record, create like an object with like updates like and their time that the update happened so we are tracking the coins
+Cole: integrate some form of rugpull detection that can like keep an index of wallets that have been associated with Rugpull schemes and blacklist them
+Cole: pump.fun addresses have pump at the end and some rugpull coins that have been identified don't have the pump at the end
+Cole: Have a GUI so easier access so when a coin passes rugpull check after getting inserted into the DB it will post to the GUI and have a hyperlink avaiable
+Cole: have the option to do auto trading and manual trading (just giving picks)
+Cole: have a risk level for rugpulls to identify what is the risk for like doing short term trades so basically the length of that coin living before I get cooked
+Cole: if a coin is a cult like is legit and has legit people under it than it will last longer than meme coins that you got no clue about so we assume that all coins shall be traded in short term because they can rugpull at any time, never assume a coin will go back up as that's emotional trading
+Cole: do small amount of trades per day as the higher the amount the higher the risk and volatility of your bankroll. Have an expected amount to make per day such as per hour so when we hit our profit for the day we stop automatically
+Cole: have short term trades but have the ability to do like a median average over a sample size of coins and see when coins are rugging so we have a security of knowing a coin won't rug in our trades (based on our risk factor calculated)
+Cole: have the ability for a demo account to test your trading strategy rather than connecting a wallet and just trading without conscience.
+
+
+Edwin: Have some form of insider detection for bundled wallets that are risks of rugpulls (wallets having similar holding amounts), (% bundled)
+Edwin: get statistics for wallets
+Edwin: have some form of wallet tracking for (user preferred wallets such as top level traders) so whenever they make a movement on a coin we can trade given coin (copytrading)
+Edwin: twitters are being reused as rugpulls reused socials by changing the bio with a different ca or even changing the image and other stuff
+
 
 Saddam:  track wallets and see which top level traders are trading the "best" coins (user provides a list of wallets they find and know are top level traders). Go through the wallets and figure out which coins they are buying
