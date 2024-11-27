@@ -1,7 +1,13 @@
 [package]
-name = "photonProspects"
+name = "photon_prospects"
 version = "0.1.0"
 edition = "2021"
+description = "WebSocket server for token tracking"
+license = "MIT"
+repository = "https://github.com/coleleavitt/photon_prospects"
+readme = "README.md"
+keywords = ["websocket", "tokens", "crypto"]
+categories = ["web-programming::websocket"]
 
 [dependencies]
 tokio = { version = "1.41.1", features = ["full"] }
@@ -9,7 +15,8 @@ tokio-tungstenite = { version = "0.24.0", features = ["connect"] }
 futures-util = "0.3.31"
 serde = { version = "1.0.215", features = ["derive"] }
 serde_json = "1.0.133"
-thiserror = "2.0.3"
+thiserror = "1.0.69"
 rustc-hash = "2.0.0"
 mimalloc = "0.1.43"
+[dev-dependencies]
 tempfile = "3.14.0"
