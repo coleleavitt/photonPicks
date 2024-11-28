@@ -2,6 +2,7 @@
 
 mod models;
 mod math;
+mod errors;
 
 use std::fs::OpenOptions;
 use std::io::{BufWriter, Write};
@@ -10,8 +11,10 @@ use tokio::net::TcpListener;
 use tokio::sync::RwLock;
 use tokio_tungstenite::{accept_async, tungstenite::protocol::Message};
 
-use crate::models::{Result, TokenData, TokenMap, WebSocketError};
+use crate::models::{TokenData, TokenMap};
 use crate::math::{generate_wallet_holdings, collect_recent_trades};
+use crate::errors::{Result, WebSocketError};
+
 use futures_util::{StreamExt, TryStreamExt};
 const ADDR: &str = "127.0.0.1:8080";
 const FILE_PATH: &str = "tokens.txt";
@@ -27,10 +30,6 @@ async fn main() -> Result<()> {
     println!("WebSocket server listening on ws://{ADDR}");
 
     let token_map = Arc::new(RwLock::new(TokenMap::default()));
-
-    if !std::path::Path::new(FILE_PATH).exists() {
-        std::fs::File::create(FILE_PATH)?;
-    }
 
     while let Ok((stream, _)) = listener.accept().await {
         let token_map = Arc::clone(&token_map);
@@ -113,14 +112,16 @@ fn print_token_details(tokens: &serde_json::Value) -> Result<()> {
 fn print_single_token(token: &TokenData, name: &str) {
     println!("## Token Details");
     println!("Name: {name}");
+    
+    if (token.attributes.fdv.is_some()) && token.attributes.fdv > Option::from(50000.0) {
+        if let Some(addr) = &token.attributes.token_address { println!("Address: {addr}"); }
+        if let Some(symbol) = &token.attributes.symbol { println!("Symbol: {symbol}"); }
+        if let Some(price) = token.attributes.price_usd { println!("Price: ${price:.8}"); }
+        if let Some(volume) = token.attributes.volume { println!("Volume: ${volume:.2}"); }
+        if let Some(holders) = token.attributes.holders_count { println!("Holders: {holders}"); }
+        if let Some(market_cap) = token.attributes.fdv { println!("Market Cap: ${market_cap:.2}"); }
 
-    if let Some(addr) = &token.attributes.token_address { println!("Address: {addr}"); }
-    if let Some(symbol) = &token.attributes.symbol { println!("Symbol: {symbol}"); }
-    if let Some(price) = token.attributes.price_usd { println!("Price: ${price:.8}"); }
-    if let Some(volume) = token.attributes.volume { println!("Volume: ${volume:.2}"); }
-    if let Some(holders) = token.attributes.holders_count { println!("Holders: {holders}"); }
-    if let Some(market_cap) = token.attributes.fdv { println!("Market Cap: ${market_cap:.2}"); }
-
+    }
     let trades = collect_recent_trades(token);
     let wallet_holdings = generate_wallet_holdings(token);
     let hhi = token.calculate_adjusted_concentration(&wallet_holdings, &trades);
@@ -133,6 +134,9 @@ fn print_single_token(token: &TokenData, name: &str) {
 
 
 fn append_to_file(file_path: &str, new_tokens: &serde_json::Value) -> Result<()> {
+    if !std::path::Path::new(FILE_PATH).exists() {
+        std::fs::File::create(FILE_PATH)?;
+    }
     let file = OpenOptions::new()
         .append(true)
         .create(true)

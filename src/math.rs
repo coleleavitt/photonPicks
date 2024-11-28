@@ -92,8 +92,8 @@ impl TokenData {
 
         f64::min(bot_likelihood, 1.0)
     }
-    
-    
+
+
 
     pub fn calculate_adjusted_concentration(&self, wallet_holdings: &HashMap<String, f64>, trades: &[TradePattern]) -> f64 {
         let base_hhi = self.calculate_wallet_concentration(wallet_holdings);
