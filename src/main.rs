@@ -14,6 +14,9 @@ use crate::math::{generate_wallet_holdings, collect_recent_trades};
 use crate::errors::{Result, WebSocketError};
 use futures_util::{StreamExt, TryStreamExt};
 use std::collections::HashMap;
+use std::fs::OpenOptions;
+use std::io::Write;
+use std::time::{Duration, Instant};
 
 const ADDR: &str = "127.0.0.1:8080";
 
@@ -26,6 +29,7 @@ struct TokenApp {
     current_page: usize,
     search_query: String,
     cached_tokens: Vec<(String, TokenData)>,
+    last_refresh: Instant,
 }
 
 impl Default for TokenApp {
@@ -36,6 +40,7 @@ impl Default for TokenApp {
             current_page: 0,
             search_query: String::new(),
             cached_tokens: Vec::new(),
+            last_refresh: Instant::now(),
         }
     }
 }
@@ -89,12 +94,37 @@ impl TokenApp {
             .map(|(k, v)| (k.to_string(), v.clone()))
             .collect();
     }
+
+    fn detect_duplicates(&self) {
+        let mut seen = std::collections::HashSet::new();
+        let mut duplicates = Vec::new();
+
+        for (name, token) in &self.cached_tokens {
+            if !seen.insert(name.clone()) {
+                duplicates.push((name.clone(), token.attributes.token_address.clone()));
+            }
+        }
+
+        if !duplicates.is_empty() {
+            let mut file = OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open("duplicates.log")
+                .unwrap();
+
+            for (name, address) in duplicates {
+                writeln!(file, "Duplicate token: {}, Address: {}", name, address.unwrap_or_default()).unwrap();
+            }
+        }
+    }
 }
 
 impl eframe::App for TokenApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if self.cached_tokens.is_empty() {
+        if self.cached_tokens.is_empty() || self.last_refresh.elapsed() > Duration::from_secs(5) {
             self.update_cache();
+            self.detect_duplicates();
+            self.last_refresh = Instant::now();
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -110,6 +140,12 @@ impl eframe::App for TokenApp {
                     self.update_cache();
                 }
             });
+
+            // Add refresh button
+            if ui.button("Refresh").clicked() {
+                self.update_cache();
+                self.detect_duplicates();
+            }
 
             // Add pagination controls
             ui.horizontal(|ui| {
@@ -324,7 +360,7 @@ async fn handle_connection(
             Ok(())
         }
     })
-        .await?;
+    .await?;
 
     Ok(())
 }
