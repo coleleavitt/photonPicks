@@ -119,6 +119,7 @@ fn print_single_token(token: &TokenData, name: &str) {
     if let Some(price) = token.attributes.price_usd { println!("Price: ${price:.8}"); }
     if let Some(volume) = token.attributes.volume { println!("Volume: ${volume:.2}"); }
     if let Some(holders) = token.attributes.holders_count { println!("Holders: {holders}"); }
+    if let Some(market_cap) = token.attributes.fdv { println!("Market Cap: ${market_cap:.2}"); }
 
     let trades = collect_recent_trades(token);
     let wallet_holdings = generate_wallet_holdings(token);
