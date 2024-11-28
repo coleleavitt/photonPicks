@@ -8,6 +8,8 @@ pub enum WebSocketError {
     IoError(#[from] std::io::Error),
     #[error("Serde error: {0}")]
     SerdeError(#[from] serde_json::Error),
+    #[error("Other error: {0}")]
+    Other(String),
 }
 
 pub type Result<T> = std::result::Result<T, WebSocketError>;
