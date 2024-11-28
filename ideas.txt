@@ -18,7 +18,6 @@ Cole: have the ability for a demo account to test your trading strategy rather t
 
 
 Cole: Add refresh button to UI and also a 5 second refresh that will refresh the index of the coins and also have like a total coin count as well as some form of duplicate detection like different token addresses, same name
-Cole: Add PnL
 
 Edwin: Have some form of insider detection for bundled wallets that are risks of rugpulls (wallets having similar holding amounts), (% bundled)
 Edwin: get statistics for wallets

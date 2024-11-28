@@ -1,21 +1,24 @@
 //! Main module for the WebSocket server.
 
-mod errors;
-mod math;
 mod models;
-mod websocket;
+mod math;
+mod errors;
 
-use crate::errors::{Result, WebSocketError};
-use crate::math::{collect_recent_trades, generate_wallet_holdings};
-use crate::models::{TokenData, TokenMap};
-use crate::websocket::handler::handle_connection;
-use crate::websocket::server::start_websocket_server;
+use std::sync::Arc;
+use tokio::net::TcpListener;
+use tokio::sync::RwLock;
+use tokio_tungstenite::{accept_async, tungstenite::protocol::Message};
 use eframe::egui;
+use crate::models::{TokenData, TokenMap};
+use crate::math::{generate_wallet_holdings, collect_recent_trades};
+use crate::errors::{Result, WebSocketError};
+use futures_util::{StreamExt, TryStreamExt};
 use std::fs::OpenOptions;
 use std::io::Write;
-use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tokio::sync::RwLock;
+
+const ADDR: &str = "127.0.0.1:8080";
+
 #[global_allocator]
 static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
@@ -44,22 +47,21 @@ impl Default for TokenApp {
 impl TokenApp {
     fn update_cache(&mut self) {
         let token_map = tokio::task::block_in_place(|| {
-            tokio::runtime::Handle::current()
-                .block_on(async { self.token_data.read().await.clone() })
+            tokio::runtime::Handle::current().block_on(async {
+                self.token_data.read().await.clone()
+            })
         });
 
         let mut tokens: Vec<_> = token_map.iter().collect();
         tokens.sort_by(|a, b| {
-            let a_risk =
-                a.1.get_concentration_risk(a.1.calculate_adjusted_concentration(
-                    &generate_wallet_holdings(a.1),
-                    &collect_recent_trades(a.1),
-                ));
-            let b_risk =
-                b.1.get_concentration_risk(b.1.calculate_adjusted_concentration(
-                    &generate_wallet_holdings(b.1),
-                    &collect_recent_trades(b.1),
-                ));
+            let a_risk = a.1.get_concentration_risk(a.1.calculate_adjusted_concentration(
+                &generate_wallet_holdings(a.1),
+                &collect_recent_trades(a.1),
+            ));
+            let b_risk = b.1.get_concentration_risk(b.1.calculate_adjusted_concentration(
+                &generate_wallet_holdings(b.1),
+                &collect_recent_trades(b.1),
+            ));
 
             let risk_value = |risk: &str| -> i32 {
                 match risk {
@@ -87,8 +89,7 @@ impl TokenApp {
             }
         });
 
-        self.cached_tokens = tokens
-            .into_iter()
+        self.cached_tokens = tokens.into_iter()
             .map(|(k, v)| (k.to_string(), v.clone()))
             .collect();
     }
@@ -111,13 +112,7 @@ impl TokenApp {
                 .unwrap();
 
             for (name, address) in duplicates {
-                writeln!(
-                    file,
-                    "Duplicate t@oken: {}, Address: {}",
-                    name,
-                    address.unwrap_or_default()
-                )
-                .unwrap();
+                writeln!(file, "Duplicate t@oken: {}, Address: {}", name, address.unwrap_or_default()).unwrap();
             }
         }
     }
@@ -156,29 +151,23 @@ impl eframe::App for TokenApp {
                 ui.label("Tokens per page:");
                 ui.add(egui::Slider::new(&mut self.tokens_per_page, 5..=50));
 
-                let filtered_tokens: Vec<_> = self
-                    .cached_tokens
+                let filtered_tokens: Vec<_> = self.cached_tokens
                     .iter()
                     .filter(|(_, token)| {
                         if self.search_query.is_empty() {
                             return true;
                         }
                         let query = self.search_query.to_lowercase();
-                        token
-                            .attributes
-                            .name
-                            .as_ref()
-                            .map_or(false, |name| name.to_lowercase().contains(&query))
-                            || token
-                                .attributes
-                                .symbol
-                                .as_ref()
-                                .map_or(false, |symbol| symbol.to_lowercase().contains(&query))
+                        token.attributes.name.as_ref().map_or(false, |name|
+                            name.to_lowercase().contains(&query)
+                        ) ||
+                            token.attributes.symbol.as_ref().map_or(false, |symbol|
+                                symbol.to_lowercase().contains(&query)
+                            )
                     })
                     .collect();
 
-                let total_pages =
-                    (filtered_tokens.len() as f32 / self.tokens_per_page as f32).ceil() as usize;
+                let total_pages = (filtered_tokens.len() as f32 / self.tokens_per_page as f32).ceil() as usize;
                 if ui.button("←").clicked() && self.current_page > 0 {
                     self.current_page -= 1;
                 }
@@ -188,24 +177,19 @@ impl eframe::App for TokenApp {
                 }
             });
 
-            let filtered_tokens: Vec<_> = self
-                .cached_tokens
+            let filtered_tokens: Vec<_> = self.cached_tokens
                 .iter()
                 .filter(|(_, token)| {
                     if self.search_query.is_empty() {
                         return true;
                     }
                     let query = self.search_query.to_lowercase();
-                    token
-                        .attributes
-                        .name
-                        .as_ref()
-                        .map_or(false, |name| name.to_lowercase().contains(&query))
-                        || token
-                            .attributes
-                            .symbol
-                            .as_ref()
-                            .map_or(false, |symbol| symbol.to_lowercase().contains(&query))
+                    token.attributes.name.as_ref().map_or(false, |name|
+                        name.to_lowercase().contains(&query)
+                    ) ||
+                        token.attributes.symbol.as_ref().map_or(false, |symbol|
+                            symbol.to_lowercase().contains(&query)
+                        )
                 })
                 .collect();
 
@@ -237,20 +221,16 @@ impl eframe::App for TokenApp {
                             ui.horizontal(|ui| {
                                 ui.vertical(|ui| {
                                     if let Some(name) = &token.attributes.name {
-                                        ui.heading(
-                                            egui::RichText::new(name.to_string())
-                                                .strong()
-                                                .size(20.0),
-                                        );
+                                        ui.heading(egui::RichText::new(name.to_string())
+                                            .strong()
+                                            .size(20.0));
                                     }
 
                                     ui.horizontal(|ui| {
                                         if let Some(addr) = &token.attributes.token_address {
-                                            ui.label(
-                                                egui::RichText::new(format!("Address: {}", addr))
-                                                    .monospace()
-                                                    .size(14.0),
-                                            );
+                                            ui.label(egui::RichText::new(format!("Address: {}", addr))
+                                                .monospace()
+                                                .size(14.0));
                                         }
                                     });
 
@@ -258,90 +238,57 @@ impl eframe::App for TokenApp {
 
                                     ui.horizontal(|ui| {
                                         if let Some(symbol) = &token.attributes.symbol {
-                                            ui.label(
-                                                egui::RichText::new(format!("Symbol: {}", symbol))
-                                                    .monospace()
-                                                    .size(14.0),
-                                            );
+                                            ui.label(egui::RichText::new(format!("Symbol: {}", symbol))
+                                                .monospace()
+                                                .size(14.0));
                                         }
                                         ui.add_space(20.0);
                                         if let Some(price) = token.attributes.price_usd {
-                                            ui.label(
-                                                egui::RichText::new(format!(
-                                                    "Price: ${:.8}",
-                                                    price
-                                                ))
+                                            ui.label(egui::RichText::new(format!("Price: ${:.8}", price))
                                                 .monospace()
-                                                .size(14.0),
-                                            );
+                                                .size(14.0));
                                         }
                                     });
 
                                     ui.horizontal(|ui| {
                                         if let Some(market_cap) = token.attributes.fdv {
-                                            ui.label(
-                                                egui::RichText::new(format!(
-                                                    "Market Cap: ${:.2}",
-                                                    market_cap
-                                                ))
+                                            ui.label(egui::RichText::new(format!("Market Cap: ${:.2}", market_cap))
                                                 .monospace()
-                                                .size(14.0),
-                                            );
+                                                .size(14.0));
                                         }
                                         ui.add_space(20.0);
                                         if let Some(volume) = token.attributes.volume {
-                                            ui.label(
-                                                egui::RichText::new(format!(
-                                                    "Volume: ${:.2}",
-                                                    volume
-                                                ))
+                                            ui.label(egui::RichText::new(format!("Volume: ${:.2}", volume))
                                                 .monospace()
-                                                .size(14.0),
-                                            );
+                                                .size(14.0));
                                         }
                                     });
 
                                     ui.horizontal(|ui| {
                                         if let Some(holders) = token.attributes.holders_count {
-                                            ui.label(
-                                                egui::RichText::new(format!(
-                                                    "Holders: {}",
-                                                    holders
-                                                ))
+                                            ui.label(egui::RichText::new(format!("Holders: {}", holders))
                                                 .monospace()
-                                                .size(14.0),
-                                            );
+                                                .size(14.0));
                                         }
                                         ui.add_space(20.0);
-                                        ui.label(
-                                            egui::RichText::new(format!(
-                                                "Concentration: {:.4}",
-                                                hhi
-                                            ))
+                                        ui.label(egui::RichText::new(format!("Concentration: {:.4}", hhi))
                                             .monospace()
-                                            .size(14.0),
-                                        );
+                                            .size(14.0));
                                         ui.add_space(20.0);
 
                                         let risk_color = match risk_level {
                                             "Low Risk" => egui::Color32::from_rgb(100, 255, 100),
-                                            "Moderate Risk" => {
-                                                egui::Color32::from_rgb(255, 255, 100)
-                                            }
+                                            "Moderate Risk" => egui::Color32::from_rgb(255, 255, 100),
                                             "High Risk" => egui::Color32::from_rgb(255, 180, 100),
-                                            "Very High Risk" => {
-                                                egui::Color32::from_rgb(255, 100, 100)
-                                            }
+                                            "Very High Risk" => egui::Color32::from_rgb(255, 100, 100),
                                             _ => ui.visuals().text_color(),
                                         };
 
-                                        ui.label(
-                                            egui::RichText::new(risk_level)
-                                                .strong()
-                                                .monospace()
-                                                .color(risk_color)
-                                                .size(14.0),
-                                        );
+                                        ui.label(egui::RichText::new(risk_level)
+                                            .strong()
+                                            .monospace()
+                                            .color(risk_color)
+                                            .size(14.0));
                                     });
                                 });
                             });
@@ -360,15 +307,82 @@ impl eframe::App for TokenApp {
 async fn main() -> Result<()> {
     let app = TokenApp::default();
     let token_map = Arc::clone(&app.token_data);
-    start_websocket_server(token_map).await?;
+
+    tokio::spawn(async move {
+        if let Ok(listener) = TcpListener::bind(ADDR).await {
+            println!("WebSocket server listening on ws://{ADDR}");
+            while let Ok((stream, _)) = listener.accept().await {
+                let token_map = Arc::clone(&token_map);
+                tokio::spawn(async move {
+                    if let Err(e) = handle_connection(stream, token_map).await {
+                        eprintln!("Error handling connection: {e}");
+                    }
+                });
+            }
+        }
+    });
 
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size(egui::Vec2::new(800.0, 600.0)),
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size(egui::Vec2::new(800.0, 600.0)),
         ..Default::default()
     };
 
-    eframe::run_native("Token Monitor", options, Box::new(|_cc| Ok(Box::new(app))))
-        .map_err(|e| WebSocketError::Other(e.to_string()))?;
+    eframe::run_native(
+        "Token Monitor",
+        options,
+        Box::new(|_cc| Ok(Box::new(app))),
+    ).map_err(|e| WebSocketError::Other(e.to_string()))?;
+
+    Ok(())
+}
+
+async fn handle_connection(
+    stream: tokio::net::TcpStream,
+    token_map: Arc<RwLock<TokenMap>>,
+) -> Result<()> {
+    let ws_stream = accept_async(stream).await?;
+    let (_write, read) = ws_stream.split();
+
+    read.try_for_each(|msg| {
+        let token_map = Arc::clone(&token_map);
+        async move {
+            match msg {
+                Message::Text(text) => {
+                    if let Err(e) = process_message(&text, &token_map).await {
+                        eprintln!("Error processing message: {e}");
+                    }
+                }
+                Message::Close(_) => return Ok(()),
+                _ => {}
+            }
+            Ok(())
+        }
+    })
+    .await?;
+
+    Ok(())
+}
+
+async fn process_message(text: &str, token_map: &Arc<RwLock<TokenMap>>) -> Result<()> {
+    let json: serde_json::Value = serde_json::from_str(text)?;
+    if let Some(tokens) = json.get("tokens") {
+        update_token_map(tokens, token_map).await?;
+    }
+    Ok(())
+}
+
+async fn update_token_map(
+    tokens: &serde_json::Value,
+    token_map: &Arc<RwLock<TokenMap>>,
+) -> Result<()> {
+    let tokens_array = tokens.as_array()
+        .ok_or_else(|| WebSocketError::TokenParse("Expected array".into()))?;
+
+    for token_value in tokens_array {
+        let token: TokenData = serde_json::from_value(token_value.clone())?;
+        token_map.write().await.insert(token.id.clone(), token);
+    }
 
     Ok(())
 }

@@ -1,5 +1,5 @@
-use rustc_hash::FxHashMap;
 use serde::{Deserialize, Serialize};
+use rustc_hash::FxHashMap;
 pub type TokenMap = FxHashMap<Box<str>, TokenData>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -114,3 +114,5 @@ mod tests {
         assert!(result.is_ok());
     }
 }
+
+

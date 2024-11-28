@@ -35,7 +35,7 @@ impl TokenData {
 
         if let Some(n) = self.attributes.holders_count {
             let n = n as f64;
-            return (hhi - (1.0 / n)) / (1.0 - (1.0 / n));
+            return (hhi - (1.0/n))/(1.0 - (1.0/n));
         }
 
         hhi
@@ -56,16 +56,14 @@ impl TokenData {
         for trade in trades {
             if let Ok(timestamp) = trade.timestamp.duration_since(SystemTime::UNIX_EPOCH) {
                 let key = timestamp.as_secs();
-                clustered_trades
-                    .entry(key)
+                clustered_trades.entry(key)
                     .or_insert_with(Vec::new)
                     .push(trade);
             }
         }
 
         for (_timestamp, cluster) in clustered_trades {
-            if cluster.len() >= 3 {
-                // Lower threshold since bots often trade in smaller bursts
+            if cluster.len() >= 3 { // Lower threshold since bots often trade in smaller bursts
                 let price_variance = calculate_variance(cluster.iter().map(|t| t.price));
                 let amount_variance = calculate_variance(cluster.iter().map(|t| t.amount));
 
@@ -75,17 +73,15 @@ impl TokenData {
                 }
 
                 // Check trade type patterns
-                let all_same_type = cluster.windows(2).all(|w| {
-                    std::mem::discriminant(&w[0].trade_type)
-                        == std::mem::discriminant(&w[1].trade_type)
-                });
+                let all_same_type = cluster.windows(2).all(|w|
+                    std::mem::discriminant(&w[0].trade_type) == std::mem::discriminant(&w[1].trade_type)
+                );
                 if all_same_type {
                     bot_likelihood += 0.2;
                 }
 
                 // Check for wallet pattern repetition with stricter criteria
-                let unique_wallets = cluster
-                    .iter()
+                let unique_wallets = cluster.iter()
                     .map(|t| &t.wallet)
                     .collect::<std::collections::HashSet<_>>();
                 if unique_wallets.len() <= 3 && cluster.len() > 5 {
@@ -97,11 +93,9 @@ impl TokenData {
         f64::min(bot_likelihood, 1.0)
     }
 
-    pub fn calculate_adjusted_concentration(
-        &self,
-        wallet_holdings: &HashMap<String, f64>,
-        trades: &[TradePattern],
-    ) -> f64 {
+
+
+    pub fn calculate_adjusted_concentration(&self, wallet_holdings: &HashMap<String, f64>, trades: &[TradePattern]) -> f64 {
         let base_hhi = self.calculate_wallet_concentration(wallet_holdings);
         let bot_likelihood = self.detect_bot_patterns(trades);
 
@@ -114,14 +108,14 @@ impl TokenData {
             h if h < 0.15 => "Low Risk",
             h if h < 0.25 => "Moderate Risk",
             h if h < 0.40 => "High Risk",
-            _ => "Very High Risk",
+            _ => "Very High Risk"
         }
     }
 }
 
 fn calculate_variance<I>(values: I) -> f64
 where
-    I: Iterator<Item = f64>,
+    I: Iterator<Item = f64>
 {
     let mut count = 0;
     let mut sum = 0.0;
@@ -159,7 +153,7 @@ pub(crate) fn generate_wallet_holdings(token: &TokenData) -> HashMap<String, f64
             if remaining_holders > 0 {
                 holdings.insert(
                     "remaining_holders".to_string(),
-                    remaining / f64::from(remaining_holders),
+                    remaining / f64::from(remaining_holders)
                 );
             }
         }
@@ -167,6 +161,7 @@ pub(crate) fn generate_wallet_holdings(token: &TokenData) -> HashMap<String, f64
 
     holdings
 }
+
 
 pub fn collect_recent_trades(token: &TokenData) -> Vec<TradePattern> {
     let mut trades = Vec::new();
@@ -208,3 +203,4 @@ pub fn collect_recent_trades(token: &TokenData) -> Vec<TradePattern> {
 
     trades
 }
+
