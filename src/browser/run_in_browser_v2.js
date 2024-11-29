@@ -10,7 +10,7 @@ localWs.onopen = () => {
 
 localWs.onerror = (error) => {
     console.error('WebSocket error:', error);
-};
+};;
 
 localWs.onclose = () => {
     console.log('Disconnected from local WebSocket server');
