@@ -1,7 +1,8 @@
-use eframe::egui;
-use crate::risk::{RiskCalculator, RiskLevel};
-use std::collections::HashSet;
 use crate::models::Audit;
+use crate::risk::{RiskCalculator, RiskLevel};
+use eframe::egui;
+use std::collections::HashSet;
+
 #[derive(Clone)]
 pub struct FilterBox {
     pub active_filters: HashSet<RiskLevel>,
@@ -20,11 +21,7 @@ impl FilterBox {
         }
     }
 
-    pub fn show(
-        &mut self,
-        ctx: &egui::Context,
-        risk_calculator: &RiskCalculator,
-    ) -> bool {
+    pub fn show(&mut self, ctx: &egui::Context, risk_calculator: &RiskCalculator) -> bool {
         let mut needs_update = false;
 
         if !self.show_filter_menu {
@@ -47,56 +44,71 @@ impl FilterBox {
 
     fn show_filter_content(&mut self, ui: &mut egui::Ui, risk_calculator: &RiskCalculator) -> bool {
         let mut needs_update = false;
+        needs_update |= self.show_filter_section_risk_levels(ui, risk_calculator);
+        needs_update |= self.show_filter_section_social_media(ui);
+        needs_update |= self.process_bottom_actions(ui);
+        needs_update
+    }
 
-        // Risk Level Section
+    fn display_active_count_label(ui: &mut egui::Ui, count: usize) {
+        if count > 0 {
+            ui.label(
+                egui::RichText::new(format!("{} selected", count))
+                    .size(12.0)
+                    .color(egui::Color32::from_rgb(139, 148, 158)),
+            );
+        }
+    }
+
+    fn show_filter_section_risk_levels(
+        &mut self,
+        ui: &mut egui::Ui,
+        risk_calculator: &RiskCalculator,
+    ) -> bool {
+        let mut needs_update = false;
         ui.group(|ui| {
             ui.horizontal(|ui| {
                 ui.heading(
                     egui::RichText::new("Risk Levels")
                         .size(16.0)
-                        .color(egui::Color32::from_rgb(201, 209, 217))
+                        .color(egui::Color32::from_rgb(201, 209, 217)),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let active_count = self.active_filters.len();
-                    if active_count > 0 {
-                        ui.label(
-                            egui::RichText::new(format!("{} selected", active_count))
-                                .size(12.0)
-                                .color(egui::Color32::from_rgb(139, 148, 158))
-                        );
-                    }
+                    Self::display_active_count_label(ui, active_count);
                 });
             });
 
             ui.add_space(8.0);
 
             let risk_colors = [
-                egui::Color32::from_rgb(87, 171, 90),  // Low - Muted green
-                egui::Color32::from_rgb(187, 128, 9),  // Moderate - Warm yellow
-                egui::Color32::from_rgb(219, 97, 62),  // High - Warm orange
-                egui::Color32::from_rgb(219, 68, 55),  // Very High - Warm red
+                egui::Color32::from_rgb(87, 171, 90),
+                egui::Color32::from_rgb(187, 128, 9),
+                egui::Color32::from_rgb(219, 97, 62),
+                egui::Color32::from_rgb(219, 68, 55),
             ];
 
             for (risk_level, base_color) in [
                 RiskLevel::Low,
                 RiskLevel::Moderate,
                 RiskLevel::High,
-                RiskLevel::VeryHigh
-            ].iter().zip(risk_colors.iter()) {
+                RiskLevel::VeryHigh,
+            ]
+            .iter()
+            .zip(risk_colors.iter())
+            {
                 let text = risk_calculator.get_risk_text(*risk_level);
                 let is_active = self.active_filters.contains(risk_level);
-                let response = ui.add(
-                    egui::SelectableLabel::new(
-                        is_active,
-                        egui::RichText::new(format!("⬤ {}", text))
-                            .color(if is_active {
-                                *base_color
-                            } else {
-                                base_color.linear_multiply(0.5)
-                            })
-                            .size(14.0)
-                    )
-                );
+                let response = ui.add(egui::SelectableLabel::new(
+                    is_active,
+                    egui::RichText::new(format!("⬤ {}", text))
+                        .color(if is_active {
+                            *base_color
+                        } else {
+                            base_color.linear_multiply(0.5)
+                        })
+                        .size(14.0),
+                ));
 
                 if response.clicked() {
                     if is_active {
@@ -109,25 +121,21 @@ impl FilterBox {
             }
         });
 
-        ui.add_space(16.0);
+        needs_update
+    }
 
-        // Social Media Section
+    fn show_filter_section_social_media(&mut self, ui: &mut egui::Ui) -> bool {
+        let mut needs_update = false;
         ui.group(|ui| {
             ui.horizontal(|ui| {
                 ui.heading(
                     egui::RichText::new("Social Media")
                         .size(16.0)
-                        .color(egui::Color32::from_rgb(201, 209, 217))
+                        .color(egui::Color32::from_rgb(201, 209, 217)),
                 );
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     let active_count = self.active_social_filters.len();
-                    if active_count > 0 {
-                        ui.label(
-                            egui::RichText::new(format!("{} selected", active_count))
-                                .size(12.0)
-                                .color(egui::Color32::from_rgb(139, 148, 158))
-                        );
-                    }
+                    Self::display_active_count_label(ui, active_count);
                 });
             });
 
@@ -136,23 +144,21 @@ impl FilterBox {
             let social_options = [
                 ("Twitter", "🐦", egui::Color32::from_rgb(29, 155, 240)),
                 ("Reddit", "🔵", egui::Color32::from_rgb(255, 88, 62)),
-                ("Telegram", "✈️", egui::Color32::from_rgb(34, 158, 217))
+                ("Telegram", "✈️", egui::Color32::from_rgb(34, 158, 217)),
             ];
 
             for (platform, icon, brand_color) in social_options {
                 let is_active = self.active_social_filters.contains(platform);
-                let response = ui.add(
-                    egui::SelectableLabel::new(
-                        is_active,
-                        egui::RichText::new(format!("{} {}", icon, platform))
-                            .size(14.0)
-                            .color(if is_active {
-                                brand_color
-                            } else {
-                                egui::Color32::from_rgb(139, 148, 158)
-                            })
-                    )
-                );
+                let response = ui.add(egui::SelectableLabel::new(
+                    is_active,
+                    egui::RichText::new(format!("{} {}", icon, platform))
+                        .size(14.0)
+                        .color(if is_active {
+                            brand_color
+                        } else {
+                            egui::Color32::from_rgb(139, 148, 158)
+                        }),
+                ));
 
                 if response.clicked() {
                     if is_active {
@@ -165,22 +171,24 @@ impl FilterBox {
             }
         });
 
-        ui.add_space(16.0);
+        needs_update
+    }
 
-        // Bottom Actions
+    fn process_bottom_actions(&mut self, ui: &mut egui::Ui) -> bool {
+        let mut needs_update = false;
         ui.with_layout(egui::Layout::bottom_up(egui::Align::RIGHT), |ui| {
             ui.horizontal(|ui| {
                 let total_active = self.active_filters.len() + self.active_social_filters.len();
 
-                if ui.add_enabled(
-                    total_active > 0,
-                    egui::Button::new(
-                        egui::RichText::new("Reset All")
-                            .size(14.0)
+                if ui
+                    .add_enabled(
+                        total_active > 0,
+                        egui::Button::new(egui::RichText::new("Reset All").size(14.0))
+                            .fill(egui::Color32::from_rgb(45, 51, 59))
+                            .min_size(egui::vec2(80.0, 32.0)),
                     )
-                        .fill(egui::Color32::from_rgb(45, 51, 59))
-                        .min_size(egui::vec2(80.0, 32.0))
-                ).clicked() {
+                    .clicked()
+                {
                     self.active_filters.clear();
                     self.active_social_filters.clear();
                     self.active_audit_filters.clear();
@@ -189,18 +197,18 @@ impl FilterBox {
 
                 ui.add_space(8.0);
 
-                if ui.add(
-                    egui::Button::new(
-                        egui::RichText::new("Apply Filters")
-                            .size(14.0)
+                if ui
+                    .add(
+                        egui::Button::new(egui::RichText::new("Apply Filters").size(14.0))
+                            .fill(if total_active > 0 {
+                                egui::Color32::from_rgb(47, 129, 247)
+                            } else {
+                                egui::Color32::from_rgb(48, 54, 61)
+                            })
+                            .min_size(egui::vec2(100.0, 32.0)),
                     )
-                        .fill(if total_active > 0 {
-                            egui::Color32::from_rgb(47, 129, 247)
-                        } else {
-                            egui::Color32::from_rgb(48, 54, 61)
-                        })
-                        .min_size(egui::vec2(100.0, 32.0))
-                ).clicked() {
+                    .clicked()
+                {
                     self.show_filter_menu = false;
                     needs_update = true;
                 }
@@ -212,7 +220,7 @@ impl FilterBox {
                 ui.label(
                     egui::RichText::new(format!("{} active filters", total_active))
                         .size(13.0)
-                        .color(egui::Color32::from_rgb(139, 148, 158))
+                        .color(egui::Color32::from_rgb(139, 148, 158)),
                 );
             }
         });

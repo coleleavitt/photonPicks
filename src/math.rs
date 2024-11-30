@@ -18,7 +18,6 @@ pub enum TradeType {
 }
 
 impl TokenData {
-    
     pub fn calculate_wallet_concentration(&self, wallet_holdings: &HashMap<String, f64>) -> f64 {
         let total_supply: f64 = wallet_holdings.values().sum();
 
@@ -57,10 +56,7 @@ impl TokenData {
         for trade in trades {
             if let Ok(timestamp) = trade.timestamp.duration_since(SystemTime::UNIX_EPOCH) {
                 let key = timestamp.as_secs();
-                clustered_trades
-                    .entry(key)
-                    .or_default()
-                    .push(trade);
+                clustered_trades.entry(key).or_default().push(trade);
             }
         }
 

@@ -1,9 +1,9 @@
 use std::cmp::Ordering;
 // risk.rs or risk/mod.rs
-use std::collections::HashMap;
-use eframe::egui;
+use crate::math::{collect_recent_trades, generate_wallet_holdings};
 use crate::models::TokenData;
-use crate::math::{generate_wallet_holdings, collect_recent_trades};
+use eframe::egui;
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum RiskLevel {
@@ -45,7 +45,6 @@ impl Ord for RiskLevel {
 pub struct RiskCalculator {
     thresholds: HashMap<RiskLevel, f64>,
 }
-
 
 impl Default for RiskCalculator {
     fn default() -> Self {

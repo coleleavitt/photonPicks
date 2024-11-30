@@ -72,10 +72,16 @@ impl TokenApp {
                     true
                 } else {
                     let query = self.search_query.to_lowercase();
-                    token.attributes.name.as_ref()
+                    token
+                        .attributes
+                        .name
+                        .as_ref()
                         .map_or(false, |name| name.to_lowercase().contains(&query))
-                        || token.attributes.symbol.as_ref()
-                        .map_or(false, |symbol| symbol.to_lowercase().contains(&query))
+                        || token
+                            .attributes
+                            .symbol
+                            .as_ref()
+                            .map_or(false, |symbol| symbol.to_lowercase().contains(&query))
                 };
 
                 // Risk level filter - Use filter_box's active_filters
@@ -91,16 +97,20 @@ impl TokenApp {
                     true
                 } else {
                     token.attributes.socials.as_ref().map_or(false, |socials| {
-                        self.filter_box.active_social_filters
-                            .iter()
-                            .all(|filter| match filter.as_str() {
-                                "Twitter" => socials.twitter.as_ref()
+                        self.filter_box.active_social_filters.iter().all(|filter| {
+                            match filter.as_str() {
+                                "Twitter" => socials
+                                    .twitter
+                                    .as_ref()
                                     .map_or(false, |url| url.starts_with("https://x.com")),
                                 "Reddit" => socials.reddit.is_some(),
-                                "Telegram" => socials.telegram.as_ref()
+                                "Telegram" => socials
+                                    .telegram
+                                    .as_ref()
                                     .map_or(false, |url| url.contains("https://t.me")),
                                 _ => false,
-                            })
+                            }
+                        })
                     })
                 };
 
@@ -109,17 +119,25 @@ impl TokenApp {
                     true
                 } else {
                     token.attributes.audit.as_ref().map_or(false, |audit| {
-                        self.filter_box.active_audit_filters
+                        self.filter_box
+                            .active_audit_filters
                             .iter()
                             .all(|filter| match filter {
-                                Audit { lp_burned_perc: 100, .. } =>
-                                    audit.lp_burned_perc == 100,
-                                Audit { top_holders_perc, .. } if *top_holders_perc <= 20.0 =>
-                                    audit.top_holders_perc <= 20.0,
-                                Audit { freeze_authority: false, .. } =>
-                                    !audit.freeze_authority,
-                                Audit { mint_authority: false, .. } =>
-                                    !audit.mint_authority,
+                                Audit {
+                                    lp_burned_perc: 100,
+                                    ..
+                                } => audit.lp_burned_perc == 100,
+                                Audit {
+                                    top_holders_perc, ..
+                                } if *top_holders_perc <= 20.0 => audit.top_holders_perc <= 20.0,
+                                Audit {
+                                    freeze_authority: false,
+                                    ..
+                                } => !audit.freeze_authority,
+                                Audit {
+                                    mint_authority: false,
+                                    ..
+                                } => !audit.mint_authority,
                                 _ => false,
                             })
                     })
@@ -130,7 +148,6 @@ impl TokenApp {
             })
             .collect()
     }
-
 
     fn update_cache(&mut self) {
         let token_map = tokio::task::block_in_place(|| {
@@ -368,7 +385,8 @@ impl eframe::App for TokenApp {
 
         // Create local copies of all state
         let filtered_tokens = self.get_filtered_tokens();
-        let total_pages = (filtered_tokens.len() as f32 / self.tokens_per_page as f32).ceil() as usize;
+        let total_pages =
+            (filtered_tokens.len() as f32 / self.tokens_per_page as f32).ceil() as usize;
         let mut tokens_per_page = self.tokens_per_page;
         let mut current_page = self.current_page;
         let mut search_query = self.search_query.clone();
@@ -378,114 +396,135 @@ impl eframe::App for TokenApp {
         // Create local copies of filter state
         let mut filter_box = self.filter_box.clone();
 
-        let needs_cache_update = egui::CentralPanel::default().show(ctx, |ui| {
-            let mut needs_update = false;
+        let needs_cache_update = egui::CentralPanel::default()
+            .show(ctx, |ui| {
+                let mut needs_update = false;
 
-            // Header
-            ui.style_mut().override_text_style = Some(egui::TextStyle::Heading);
-            ui.heading("Token Monitor");
-            ui.style_mut().override_text_style = None;
+                // Header
+                ui.style_mut().override_text_style = Some(egui::TextStyle::Heading);
+                ui.heading("Token Monitor");
+                ui.style_mut().override_text_style = None;
 
-            // Sort buttons
-            ui.horizontal(|ui| {
-                if ui.selectable_value(&mut sort_type, SortType::Risk, "Risk").clicked() {
-                    needs_update = true;
-                }
-                if ui.selectable_value(&mut sort_type, SortType::Newest, "Newest Coins").clicked() {
-                    needs_update = true;
-                }
-                if ui.selectable_value(&mut sort_type, SortType::MarketCap, "Market Cap").clicked() {
-                    needs_update = true;
-                }
-                if ui.selectable_value(&mut sort_type, SortType::Volume, "Volume").clicked() {
-                    needs_update = true;
-                }
-                if ui.selectable_value(&mut sort_type, SortType::Age, "Age").clicked() {
-                    needs_update = true;
-                }
-            });
+                // Sort buttons
+                ui.horizontal(|ui| {
+                    if ui
+                        .selectable_value(&mut sort_type, SortType::Risk, "Risk")
+                        .clicked()
+                    {
+                        needs_update = true;
+                    }
+                    if ui
+                        .selectable_value(&mut sort_type, SortType::Newest, "Newest Coins")
+                        .clicked()
+                    {
+                        needs_update = true;
+                    }
+                    if ui
+                        .selectable_value(&mut sort_type, SortType::MarketCap, "Market Cap")
+                        .clicked()
+                    {
+                        needs_update = true;
+                    }
+                    if ui
+                        .selectable_value(&mut sort_type, SortType::Volume, "Volume")
+                        .clicked()
+                    {
+                        needs_update = true;
+                    }
+                    if ui
+                        .selectable_value(&mut sort_type, SortType::Age, "Age")
+                        .clicked()
+                    {
+                        needs_update = true;
+                    }
+                });
 
-            // Search bar
-            ui.horizontal(|ui| {
-                ui.label("Search:");
-                if ui.text_edit_singleline(&mut search_query).changed() {
-                    current_page = 0;
-                    needs_update = true;
-                }
-                ui.add(egui::Label::new("🔍"))
-                    .on_hover_text("Search tokens by name or symbol");
-            });
+                // Search bar
+                ui.horizontal(|ui| {
+                    ui.label("Search:");
+                    if ui.text_edit_singleline(&mut search_query).changed() {
+                        current_page = 0;
+                        needs_update = true;
+                    }
+                    ui.add(egui::Label::new("🔍"))
+                        .on_hover_text("Search tokens by name or symbol");
+                });
 
-            // Filter button and active filters display
-            ui.horizontal(|ui| {
-                if ui.button("🔍 Filters").clicked() {
-                    filter_box.show_filter_menu = !filter_box.show_filter_menu;
-                }
+                // Filter button and active filters display
+                ui.horizontal(|ui| {
+                    if ui.button("🔍 Filters").clicked() {
+                        filter_box.show_filter_menu = !filter_box.show_filter_menu;
+                    }
 
-                // Collect active filters into a Vec to avoid borrowing issues
-                let active_filters: Vec<_> = filter_box.active_filters.iter().cloned().collect();
+                    // Collect active filters into a Vec to avoid borrowing issues
+                    let active_filters: Vec<_> =
+                        filter_box.active_filters.iter().cloned().collect();
 
-                // Display active filter chips
-                for risk_level in active_filters {
-                    let chip = egui::Frame::none()
-                        .fill(risk_calculator.get_risk_color(risk_level))
-                        .rounding(16.0)
-                        .inner_margin(egui::vec2(8.0, 4.0));
+                    // Display active filter chips
+                    for risk_level in active_filters {
+                        let chip = egui::Frame::none()
+                            .fill(risk_calculator.get_risk_color(risk_level))
+                            .rounding(16.0)
+                            .inner_margin(egui::vec2(8.0, 4.0));
 
-                    chip.show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            ui.label(
-                                egui::RichText::new(risk_calculator.get_risk_text(risk_level))
-                                    .color(egui::Color32::WHITE)
-                            );
-                            if ui.button("✕").clicked() {
-                                filter_box.active_filters.remove(&risk_level);
-                                needs_update = true;
-                            }
+                        chip.show(ui, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(
+                                    egui::RichText::new(risk_calculator.get_risk_text(risk_level))
+                                        .color(egui::Color32::WHITE),
+                                );
+                                if ui.button("✕").clicked() {
+                                    filter_box.active_filters.remove(&risk_level);
+                                    needs_update = true;
+                                }
+                            });
                         });
-                    });
-                }
-            });
+                    }
+                });
 
-            // Show filter box window
-            if filter_box.show_filter_menu {
-                let filter_update = filter_box.show(ctx, risk_calculator);
-                needs_update |= filter_update;
-            }
-
-            // Pagination controls
-            ui.horizontal(|ui| {
-                ui.label("Tokens per page:");
-                if ui.add(egui::Slider::new(&mut tokens_per_page, 5..=50)).changed() {
-                    needs_update = true;
+                // Show filter box window
+                if filter_box.show_filter_menu {
+                    let filter_update = filter_box.show(ctx, risk_calculator);
+                    needs_update |= filter_update;
                 }
 
-                if ui.button("←").clicked() && current_page > 0 {
-                    current_page -= 1;
-                    needs_update = true;
-                }
+                // Pagination controls
+                ui.horizontal(|ui| {
+                    ui.label("Tokens per page:");
+                    if ui
+                        .add(egui::Slider::new(&mut tokens_per_page, 5..=50))
+                        .changed()
+                    {
+                        needs_update = true;
+                    }
 
-                ui.label(format!("Page {} of {}", current_page + 1, total_pages));
+                    if ui.button("←").clicked() && current_page > 0 {
+                        current_page -= 1;
+                        needs_update = true;
+                    }
 
-                if ui.button("→").clicked() && current_page < total_pages - 1 {
-                    current_page += 1;
-                    needs_update = true;
-                }
-            });
+                    ui.label(format!("Page {} of {}", current_page + 1, total_pages));
 
-            // Token list
-            let start = current_page * tokens_per_page;
-            let end = (start + tokens_per_page).min(filtered_tokens.len());
+                    if ui.button("→").clicked() && current_page < total_pages - 1 {
+                        current_page += 1;
+                        needs_update = true;
+                    }
+                });
 
-            egui::ScrollArea::vertical().show(ui, |ui| {
-                for (_name, token) in &filtered_tokens[start..end] {
-                    let risk_level = risk_calculator.calculate_risk(token);
-                    Self::show_token_details_static(ui, token, risk_level, risk_calculator);
-                }
-            });
+                // Token list
+                let start = current_page * tokens_per_page;
+                let end = (start + tokens_per_page).min(filtered_tokens.len());
 
-            needs_update
-        }).inner;
+                egui::ScrollArea::vertical().show(ui, |ui| {
+                    for (_name, token) in &filtered_tokens[start..end] {
+                        let risk_level = risk_calculator.calculate_risk(token);
+                        Self::show_token_details_static(ui, token, risk_level, risk_calculator);
+                    }
+                });
+
+                needs_update
+            })
+            .inner;
 
         // Update app state with modified values
         self.sort_type = sort_type;
@@ -500,7 +539,6 @@ impl eframe::App for TokenApp {
 
         ctx.request_repaint();
     }
-
 }
 
 #[tokio::main]
