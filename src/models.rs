@@ -49,7 +49,7 @@ pub struct Attributes {
     pub action: Option<Action>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct Audit {
     pub freeze_authority: bool,
     pub lp_burned_perc: u8,

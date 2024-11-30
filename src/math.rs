@@ -18,6 +18,7 @@ pub enum TradeType {
 }
 
 impl TokenData {
+    
     pub fn calculate_wallet_concentration(&self, wallet_holdings: &HashMap<String, f64>) -> f64 {
         let total_supply: f64 = wallet_holdings.values().sum();
 

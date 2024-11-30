@@ -1,35 +1,35 @@
 mod errors;
 mod math;
 mod models;
-mod websocket;
 mod risk;
+mod ui;
+mod websocket;
 
+use crate::errors::{Result, WebSocketError};
+use crate::models::Audit;
+use crate::models::{TokenData, TokenMap};
+use crate::risk::{RiskCalculator, RiskLevel};
+use crate::ui::filters::FilterBox;
+use crate::websocket::WebSocketServer;
+use eframe::egui;
 use std::collections::{HashMap, HashSet};
+use std::fs::OpenOptions;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use crate::errors::{Result, WebSocketError};
-use crate::models::{TokenData, TokenMap};
-use eframe::egui;
-use crate::risk::{RiskCalculator, RiskLevel};
-use crate::websocket::WebSocketServer;
-use std::fs::OpenOptions;
-use chrono::TimeZone;
 
 const ADDR: &str = "127.0.0.1:8080";
 #[global_allocator]
 static ALLOC: mimalloc::MiMalloc = mimalloc::MiMalloc;
 
-#[derive(PartialEq)]
-#[derive(Clone)]
+#[derive(PartialEq, Clone)]
 enum SortType {
     Risk,
     Age,
     MarketCap,
     Volume,
-    Newest
+    Newest,
 }
-
 
 struct TokenApp {
     token_data: Arc<RwLock<TokenMap>>,
@@ -39,11 +39,9 @@ struct TokenApp {
     cached_tokens: Vec<(String, TokenData)>,
     last_refresh: Instant,
     risk_calculator: RiskCalculator,
-    active_filters: HashSet<RiskLevel>,
-    show_filter_menu: bool,
     sort_type: SortType,
     last_update: Instant,
-    active_social_filters: HashSet<String>
+    filter_box: FilterBox,
 }
 
 impl Default for TokenApp {
@@ -56,11 +54,10 @@ impl Default for TokenApp {
             cached_tokens: Vec::new(),
             last_refresh: Instant::now(),
             risk_calculator: RiskCalculator::default(),
-            active_filters: HashSet::new(),
-            show_filter_menu: false,
             sort_type: SortType::Risk,
             last_update: Instant::now(),
-            active_social_filters: HashSet::new()
+
+            filter_box: FilterBox::new(),
         }
     }
 }
@@ -70,6 +67,7 @@ impl TokenApp {
         self.cached_tokens
             .iter()
             .filter(|(_, token)| {
+                // Search filter
                 let matches_search = if self.search_query.is_empty() {
                     true
                 } else {
@@ -80,30 +78,55 @@ impl TokenApp {
                         .map_or(false, |symbol| symbol.to_lowercase().contains(&query))
                 };
 
-                let matches_risk = if self.active_filters.is_empty() {
+                // Risk level filter - Use filter_box's active_filters
+                let matches_risk = if self.filter_box.active_filters.is_empty() {
                     true
                 } else {
                     let risk_level = self.risk_calculator.calculate_risk(token);
-                    self.active_filters.contains(&risk_level)
+                    self.filter_box.active_filters.contains(&risk_level)
                 };
 
-                // Add social media filter logic here
-                let matches_socials = if self.active_social_filters.is_empty() {
+                // Social Media Filters - Use filter_box's active_social_filters
+                let matches_socials = if self.filter_box.active_social_filters.is_empty() {
                     true
                 } else {
                     token.attributes.socials.as_ref().map_or(false, |socials| {
-                        self.active_social_filters.iter().all(|filter| {
-                            match filter.as_str() {
-                                "Twitter" => socials.twitter.as_ref().map_or(false, |url| url.starts_with("https://x.com")),
+                        self.filter_box.active_social_filters
+                            .iter()
+                            .all(|filter| match filter.as_str() {
+                                "Twitter" => socials.twitter.as_ref()
+                                    .map_or(false, |url| url.starts_with("https://x.com")),
                                 "Reddit" => socials.reddit.is_some(),
-                                "Telegram" => socials.telegram.as_ref().map_or(false, |url| url.contains("https://t.me")),
+                                "Telegram" => socials.telegram.as_ref()
+                                    .map_or(false, |url| url.contains("https://t.me")),
                                 _ => false,
-                            }
-                        })
+                            })
                     })
                 };
 
-                matches_search && matches_risk && matches_socials
+                // Audit Filters - Use filter_box's active_audit_filters
+                let matches_audit = if self.filter_box.active_audit_filters.is_empty() {
+                    true
+                } else {
+                    token.attributes.audit.as_ref().map_or(false, |audit| {
+                        self.filter_box.active_audit_filters
+                            .iter()
+                            .all(|filter| match filter {
+                                Audit { lp_burned_perc: 100, .. } =>
+                                    audit.lp_burned_perc == 100,
+                                Audit { top_holders_perc, .. } if *top_holders_perc <= 20.0 =>
+                                    audit.top_holders_perc <= 20.0,
+                                Audit { freeze_authority: false, .. } =>
+                                    !audit.freeze_authority,
+                                Audit { mint_authority: false, .. } =>
+                                    !audit.mint_authority,
+                                _ => false,
+                            })
+                    })
+                };
+
+                // Combine all filters
+                matches_search && matches_risk && matches_socials && matches_audit
             })
             .collect()
     }
@@ -140,12 +163,16 @@ impl TokenApp {
             SortType::MarketCap => {
                 let a_cap = a.1.attributes.fdv.unwrap_or(0.0);
                 let b_cap = b.1.attributes.fdv.unwrap_or(0.0);
-                b_cap.partial_cmp(&a_cap).unwrap_or(std::cmp::Ordering::Equal) // Descending order
+                b_cap
+                    .partial_cmp(&a_cap)
+                    .unwrap_or(std::cmp::Ordering::Equal) // Descending order
             }
             SortType::Volume => {
                 let a_vol = a.1.attributes.volume.unwrap_or(0.0);
                 let b_vol = b.1.attributes.volume.unwrap_or(0.0);
-                b_vol.partial_cmp(&a_vol).unwrap_or(std::cmp::Ordering::Equal) // Descending order
+                b_vol
+                    .partial_cmp(&a_vol)
+                    .unwrap_or(std::cmp::Ordering::Equal) // Descending order
             }
             SortType::Age => {
                 let a_created = a.1.attributes.created_timestamp.unwrap_or(0);
@@ -158,7 +185,9 @@ impl TokenApp {
         self.cached_tokens = tokens
             .into_iter()
             .map(|(addr, token)| {
-                let display_name = token.attributes.name
+                let display_name = token
+                    .attributes
+                    .name
                     .as_ref()
                     .map(|n| n.to_string())
                     .unwrap_or_else(|| addr.clone());
@@ -166,7 +195,7 @@ impl TokenApp {
             })
             .collect();
     }
-    
+
     fn show_token_details_static(
         ui: &mut egui::Ui,
         token: &TokenData,
@@ -321,7 +350,7 @@ impl TokenApp {
                     name,
                     address.unwrap_or_default()
                 )
-                    .unwrap();
+                .unwrap();
             }
         }
     }
@@ -329,32 +358,35 @@ impl TokenApp {
 
 impl eframe::App for TokenApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        // Initial cache update if needed
         if self.cached_tokens.is_empty() || self.last_refresh.elapsed() > Duration::from_secs(5) {
             self.update_cache();
-            self.detect_duplicates();
+            // self.detect_duplicates();
             self.last_refresh = Instant::now();
             self.last_update = Instant::now();
         }
 
+        // Create local copies of all state
         let filtered_tokens = self.get_filtered_tokens();
         let total_pages = (filtered_tokens.len() as f32 / self.tokens_per_page as f32).ceil() as usize;
-
         let mut tokens_per_page = self.tokens_per_page;
         let mut current_page = self.current_page;
         let mut search_query = self.search_query.clone();
-        let mut active_filters = self.active_filters.clone();
-        let mut show_filter_menu = self.show_filter_menu;
         let mut sort_type = self.sort_type.clone();
-        let mut active_social_filters = self.active_social_filters.clone(); // Make a local copy
         let risk_calculator = &self.risk_calculator;
 
+        // Create local copies of filter state
+        let mut filter_box = self.filter_box.clone();
+
         let needs_cache_update = egui::CentralPanel::default().show(ctx, |ui| {
+            let mut needs_update = false;
+
+            // Header
             ui.style_mut().override_text_style = Some(egui::TextStyle::Heading);
             ui.heading("Token Monitor");
             ui.style_mut().override_text_style = None;
 
-            let mut needs_update = false;
-
+            // Sort buttons
             ui.horizontal(|ui| {
                 if ui.selectable_value(&mut sort_type, SortType::Risk, "Risk").clicked() {
                     needs_update = true;
@@ -373,6 +405,7 @@ impl eframe::App for TokenApp {
                 }
             });
 
+            // Search bar
             ui.horizontal(|ui| {
                 ui.label("Search:");
                 if ui.text_edit_singleline(&mut search_query).changed() {
@@ -383,165 +416,92 @@ impl eframe::App for TokenApp {
                     .on_hover_text("Search tokens by name or symbol");
             });
 
+            // Filter button and active filters display
             ui.horizontal(|ui| {
                 if ui.button("🔍 Filters").clicked() {
-                    show_filter_menu = !show_filter_menu;
+                    filter_box.show_filter_menu = !filter_box.show_filter_menu;
                 }
 
-                for risk_level in [RiskLevel::Low, RiskLevel::Moderate, RiskLevel::High, RiskLevel::VeryHigh] {
-                    if active_filters.contains(&risk_level) {
-                        let chip = egui::Frame::none()
-                            .fill(risk_calculator.get_risk_color(risk_level))
-                            .rounding(16.0)
-                            .inner_margin(egui::vec2(8.0, 4.0));
+                // Collect active filters into a Vec to avoid borrowing issues
+                let active_filters: Vec<_> = filter_box.active_filters.iter().cloned().collect();
 
-                        chip.show(ui, |ui| {
-                            ui.horizontal(|ui| {
-                                ui.label(
-                                    egui::RichText::new(risk_calculator.get_risk_text(risk_level))
-                                        .color(egui::Color32::WHITE)
-                                );
-                                if ui.button("✕").clicked() {
-                                    active_filters.remove(&risk_level);
-                                    needs_update = true;
-                                }
-                            });
-                        });
-                    }
-                }
-            });
-            
-            if show_filter_menu {
-                egui::Window::new("Filters")
-                    .fixed_size([300.0, 400.0])
-                    .show(ui.ctx(), |ui| {
-                        ui.heading("Risk Levels");
-                        ui.add_space(8.0);
+                // Display active filter chips
+                for risk_level in active_filters {
+                    let chip = egui::Frame::none()
+                        .fill(risk_calculator.get_risk_color(risk_level))
+                        .rounding(16.0)
+                        .inner_margin(egui::vec2(8.0, 4.0));
 
-                        // Risk Level Filters
-                        for risk_level in [RiskLevel::Low, RiskLevel::Moderate, RiskLevel::High, RiskLevel::VeryHigh] {
-                            let text = risk_calculator.get_risk_text(risk_level);
-                            let color = risk_calculator.get_risk_color(risk_level);
-                            if ui.add(egui::SelectableLabel::new(
-                                active_filters.contains(&risk_level),
-                                egui::RichText::new(text).color(color).strong()
-                            )).clicked() {
-                                if active_filters.contains(&risk_level) {
-                                    active_filters.remove(&risk_level);
-                                } else {
-                                    active_filters.insert(risk_level);
-                                }
-                                needs_update = true;
-                            }
-                        }
-
-                        ui.add_space(16.0);
-                        ui.separator();
-                        ui.add_space(8.0);
-
-                        // Social Media Filters
-                        ui.heading("Social Media");
-                        ui.add_space(8.0);
-
-                        let social_options = [
-                            ("Twitter", "🐦", "Filter tokens with Twitter presence"),
-                            ("Reddit", "🔵", "Filter tokens with Reddit presence"),
-                            ("Telegram", "✈️", "Filter tokens with Telegram presence")
-                        ];
-
-                        for (platform, icon, tooltip) in social_options {
-                            let is_active = active_social_filters.contains(platform);
-                            let response = ui.add(
-                                egui::SelectableLabel::new(
-                                    is_active,
-                                    egui::RichText::new(format!("{} {}", icon, platform))
-                                        .strong()
-                                        .color(
-                                            if is_active {
-                                                egui::Color32::from_rgb(100, 150, 255)
-                                            } else {
-                                                ui.style().visuals.text_color()
-                                            }
-                                        )
-                                )
-                            );
-
-                            if response.clicked() {
-                                if is_active {
-                                    active_social_filters.remove(platform);
-                                } else {
-                                    active_social_filters.insert(platform.to_string());
-                                }
-                                needs_update = true;
-                            }
-
-                            response.on_hover_text(tooltip);
-                        }
-
-                        ui.add_space(8.0);
-                        ui.separator();
-                        ui.add_space(8.0);
-
-                        // Filter Actions
+                    chip.show(ui, |ui| {
                         ui.horizontal(|ui| {
-                            if ui.button("Clear All").clicked() {
-                                active_filters.clear();
-                                active_social_filters.clear();
-                                needs_update = true;
-                            }
-
-                            if ui.button("Apply").clicked() {
-                                show_filter_menu = false;
+                            ui.label(
+                                egui::RichText::new(risk_calculator.get_risk_text(risk_level))
+                                    .color(egui::Color32::WHITE)
+                            );
+                            if ui.button("✕").clicked() {
+                                filter_box.active_filters.remove(&risk_level);
                                 needs_update = true;
                             }
                         });
                     });
-            }
-
-
-            ui.horizontal(|ui| {
-                ui.label("Tokens per page:");
-                ui.add(egui::Slider::new(&mut tokens_per_page, 5..=50));
-                if ui.button("←").clicked() && current_page > 0 {
-                    current_page -= 1;
-                }
-                ui.label(format!("Page {} of {}", current_page + 1, total_pages));
-                if ui.button("→").clicked() && current_page < total_pages - 1 {
-                    current_page += 1;
                 }
             });
 
+            // Show filter box window
+            if filter_box.show_filter_menu {
+                let filter_update = filter_box.show(ctx, risk_calculator);
+                needs_update |= filter_update;
+            }
+
+            // Pagination controls
+            ui.horizontal(|ui| {
+                ui.label("Tokens per page:");
+                if ui.add(egui::Slider::new(&mut tokens_per_page, 5..=50)).changed() {
+                    needs_update = true;
+                }
+
+                if ui.button("←").clicked() && current_page > 0 {
+                    current_page -= 1;
+                    needs_update = true;
+                }
+
+                ui.label(format!("Page {} of {}", current_page + 1, total_pages));
+
+                if ui.button("→").clicked() && current_page < total_pages - 1 {
+                    current_page += 1;
+                    needs_update = true;
+                }
+            });
+
+            // Token list
             let start = current_page * tokens_per_page;
             let end = (start + tokens_per_page).min(filtered_tokens.len());
 
             egui::ScrollArea::vertical().show(ui, |ui| {
                 for (_name, token) in &filtered_tokens[start..end] {
                     let risk_level = risk_calculator.calculate_risk(token);
-                    TokenApp::show_token_details_static(ui, token, risk_level, risk_calculator);
+                    Self::show_token_details_static(ui, token, risk_level, risk_calculator);
                 }
             });
 
             needs_update
         }).inner;
 
+        // Update app state with modified values
         self.sort_type = sort_type;
         self.tokens_per_page = tokens_per_page;
         self.current_page = current_page;
         self.search_query = search_query;
-        self.active_filters = active_filters;
-        self.active_social_filters = active_social_filters; // Apply changes to active social filters
-        self.show_filter_menu = show_filter_menu;
+        self.filter_box = filter_box;
 
         if needs_cache_update {
             self.update_cache();
-            self.detect_duplicates();
         }
 
         ctx.request_repaint();
     }
+
 }
-
-
 
 #[tokio::main]
 async fn main() -> Result<()> {
